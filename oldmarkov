@@ -1,0 +1,265 @@
+package net.mrpaul.XB300.ps19;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.*;
+
+public class Markov {
+	/**
+	 * takes txt file and babbles
+	 * 
+	 * Takes a source text and returns text based on previous text.
+	 * Has several levels of babbled text.
+	 * 
+	 * Accel PS19: Babbler
+	 * 12/19/17
+	 * 
+	 * @author Ivvone Zhou
+	 */
+	public static void main(String[] args) {
+		try {
+			String filename = "gettingmarriedtoday";
+			System.out.println(babbleNMinLength(filename, 2, 5));
+		} catch (FileNotFoundException e) {}
+	}
+
+	static final String NON_WORD = "NON_WORD";
+	
+	/**
+	 * creates suffix dictionary for bigrams
+	 * 
+	 * Creates the suffix dictionary for the source text.
+	 * Formatted so each word has a List of the words that come directly after it.
+	 * 
+	 * @param fileName name of file
+	 * @return Map of keys and suffixes
+	 * @throws FileNotFoundException
+	 */
+	public static Map<String, List<String>> buildBigramSuffixDictionary(String fileName) throws FileNotFoundException{
+		Map<String, List<String>> source = new HashMap<String, List<String>>();
+		Scanner reader = new Scanner(new File(fileName));
+		List<String> all = new ArrayList<String>();
+
+		while(reader.hasNext()){
+			Scanner line = new Scanner(reader.nextLine());
+			while(line.hasNext()) {
+				all.add(line.next());
+			}		
+		}
+
+		all.add(0, NON_WORD);
+		all.add(NON_WORD);
+
+		for(int i=0; i<all.size()-1; i++) {
+			// If already a key
+			if(source.containsKey(all.get(i))) {
+				if(!source.get(all.get(i)).contains(all.get(i + 1))){
+					source.get(all.get(i)).add(all.get(i + 1));
+				}
+			}
+			else{
+				List<String> val = new ArrayList<String>();
+				val.add(all.get(i + 1));
+				source.put(all.get(i), val);
+			}
+		}
+
+		return source;	
+	}
+	
+	/**
+	 * creates suffix dictionary for ngrams
+	 * 
+	 * Creates the suffix dictionary for the source text.
+	 * Formatted so each cluster of n words has a List of the single words that come directly after it.
+	 * 
+	 * @param fileName name of file
+	 * @param n number of words in key
+	 * @return Map of keys and suffixes
+	 * @throws FileNotFoundException
+	 */
+	public static Map<String, List<String>> buildNgramSuffixDictionary(String fileName, int n) throws FileNotFoundException{
+		Map<String, List<String>> source = new HashMap<String, List<String>>();
+		Scanner reader = new Scanner(new File(fileName));
+		List<String> all = new ArrayList<String>();
+
+		while(reader.hasNext()){
+			Scanner line = new Scanner(reader.nextLine());
+			while(line.hasNext()) {
+				all.add(line.next());
+			}		
+		}
+
+		// Pad beginning and end with NON_WORDs
+		for(int j=1; j<n; j++){
+			all.add(0, NON_WORD);
+			all.add(NON_WORD);
+		}
+
+		for(int i=0; i<all.size()-n; i++) {
+
+			// Make key n-1 words long
+			String currKey = "";
+			for(int k=0; k<n; k++){
+				currKey += all.get(i + k) + " ";
+			}
+
+			// If already a key
+			if(source.containsKey(currKey)) {
+				if(!source.get(currKey).contains(all.get(i + n))){
+					source.get(currKey).add(all.get(i + n));
+				}
+			}
+			else{
+				List<String> val = new ArrayList<String>();
+				val.add(all.get(i + n));
+				source.put(currKey, val);
+			}
+		}
+
+		return source;
+	}
+  
+	/**
+	 * babbles words from previous
+	 * 
+	 * Takes source text and draws words from it according to the word before it.
+	 * Begins at a random word.
+	 * 
+	 * @param fileName name of text file
+	 * @param length number of words to babble
+	 * @throws FileNotFoundException
+	 */
+	public static String babble1(String fileName, int length) throws FileNotFoundException{
+		String result = "";
+		Random rand = new Random();
+		Map<String, List<String>> bigrams = buildBigramSuffixDictionary(fileName);
+
+		String prefix = NON_WORD;
+		String suffix;
+
+		for(int i=0; i<rand.nextInt(bigrams.size()); i++){
+			suffix = bigrams.get(prefix).get(rand.nextInt(bigrams.get(prefix).size()));
+			prefix = suffix;
+		}
+
+		for(int i=0; i<length; i++){
+			suffix = bigrams.get(prefix).get(rand.nextInt(bigrams.get(prefix).size()));
+			result += suffix + " ";
+			prefix = suffix;
+		}
+
+		return result;
+	}
+	/**
+	 * babbles words from previous n
+	 * 
+	 * Takes source text and draws words from it according to the n words before it.
+	 * Begins at a random word.
+	 * 
+	 * @param fileName name of text file
+	 * @param n the number of words in a cluster that determine the next word
+	 * @param length number of words to babble
+	 * @throws FileNotFoundException
+	 */
+	public static String babbleN(String fileName, int n, int length) throws FileNotFoundException{
+		String result = "";
+		Random rand = new Random();
+		Map<String, List<String>> ngrams = buildNgramSuffixDictionary(fileName, n);
+		List<String> keys = new ArrayList(ngrams.keySet());
+
+		// Get a first random prefix
+		String prefix = keys.get(rand.nextInt(keys.size()));
+		String suffix = ngrams.get(prefix).get(rand.nextInt(ngrams.get(prefix).size()));;
+
+		// Make the string
+		for(int i=n; i<length; i++){
+			if(i % 2 == 0)
+				result += prefix;
+
+			// If suffix is directly a key
+			if(ngrams.containsKey(suffix)){
+				prefix = suffix;
+				suffix = ngrams.get(prefix).get(rand.nextInt(ngrams.get(prefix).size()));
+			}
+			// Ugh
+			else{
+				List<String> suffixes = new ArrayList();
+				for(int j=0; j<keys.size(); j++){
+					if(keys.get(j).length() >= suffix.length()){
+						if(keys.get(j).substring(0, suffix.length()).equals(suffix)){
+							suffix = keys.get(j);
+							j += rand.nextInt(5);
+						}
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+	
+	/**
+	 * babbles sentence
+	 * 
+	 * Takes source text and draws words from it according to the n words before it.
+	 * Stops when a full sentence is formed and minLength is reached or exceeded.
+	 * Begins at a random word.
+	 * 
+	 * @param fileName name of text file
+	 * @param n the number of words in a cluster that determine the next word
+	 * @param minLength min number of words to babble
+	 * @throws FileNotFoundException
+	 */
+	public static String babbleNMinLength(String fileName, int n, int minLength) throws FileNotFoundException{
+		String result = babbleN(fileName, n, minLength);
+		Random rand = new Random();
+		Map<String, List<String>> ngrams = buildNgramSuffixDictionary(fileName, n);
+		List<String> keys = new ArrayList(ngrams.keySet());
+
+		// Get a random prefix
+		String prefix = keys.get(rand.nextInt(keys.size()));
+		String suffix = ngrams.get(prefix).get(rand.nextInt(ngrams.get(prefix).size()));
+		
+		int i = n;
+		boolean flag = true;
+		
+		// Add on to string while the prefix is  
+		while(!(prefix.contains(".") || prefix.contains("…") || prefix.contains("!") || prefix.contains("?"))){
+			if(i % 2 == 0)
+				result += prefix;
+			// If suffix is directly a key
+			if(ngrams.containsKey(suffix)){
+				prefix = suffix;
+				suffix = ngrams.get(prefix).get(rand.nextInt(ngrams.get(prefix).size()));
+			}
+			// Ugh
+			else{
+				for(int j=0; j<keys.size(); j++){
+					if(keys.get(j).length() >= suffix.length()){
+						if(keys.get(j).substring(0, suffix.length()).equals(suffix)){
+							suffix = keys.get(j);
+							j += rand.nextInt(5);
+						}
+					}
+				}
+			}
+			i++;
+		}
+		if(prefix.contains(".")){
+			result += prefix.substring(0, prefix.indexOf(".")+1);
+		}
+		else if(prefix.contains("…")){
+			result += prefix.substring(0, prefix.indexOf("…")+1);
+		}
+		else if(prefix.contains("!")){
+			result += prefix.substring(0, prefix.indexOf("!")+1);
+		}
+		else if(prefix.contains("?")){
+			result += prefix.substring(0, prefix.indexOf("?")+1);
+		}
+
+		return result;
+	}
+
+}
